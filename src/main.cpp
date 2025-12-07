@@ -1,6 +1,10 @@
 #include <Arduino.h>
 #include <FastLED.h>
 #include "LedManager.h"
+<<<<<<< HEAD
+=======
+#include "NetworkManager.h"
+>>>>>>> 1c75ed8 (Lua is now controlling leds!)
 
 extern "C"
 {
