@@ -15,6 +15,7 @@ extern "C"
 
 lua_State *L = nullptr;
 LedManager<WS2812, LEDS_PIN> ledManager;
+bool scriptActive = false;
 
 static int l_serial_printf(lua_State *LL)
 {
@@ -91,7 +92,10 @@ static int l_toggle_obled(lua_State *LL)
 void initailizeLua()
 {
 
-  pinMode(LED_BUILTIN, OUTPUT);
+  if(L != nullptr){
+    lua_close(L);
+    L = nullptr;
+  }
 
   L = luaL_newstate();
 
@@ -115,8 +119,45 @@ void initailizeLua()
   lua_register(L, "toggle_obled", l_toggle_obled);
   lua_register(L, "set_obled", l_set_obled);
   lua_register(L, "get_obled", l_get_obled);
+
+  Serial.printf("Lua State Reset and Initialized\n");
 }
 
+void onScriptSubmit(const String& newScript)
+{
+  Serial.printf("Loading new script\n");
+
+  scriptActive = false;
+
+  initailizeLua();
+
+  if(!L)
+  {
+    Serial.printf("Critical Error: Failed to re-initialize Lua!\n");
+    return;
+  }
+
+  int error = luaL_dostring(L, newScript.c_str());
+  if(error){
+    Serial.printf("Lua Syntax Error: %s\n", lua_tostring(L, -1));
+    lua_pop(L, 1);
+    return;
+  }
+
+  lua_getglobal(L, "init");
+  if(lua_isfunction(L, -1)){
+    if(lua_pcall(L, 0, 0, 0) != 0){
+      Serial.printf("Lua Runtime Error (init): %s\n", lua_tostring(L, -1));
+      lua_pop(L, 1);
+    }
+  } else {
+    lua_pop(L, 1);
+  }
+
+  Serial.printf("Script loaded successfully. Starting Loop..\n");
+  scriptActive = true;
+
+}
 
 
 String ledScript = 
@@ -161,6 +202,9 @@ end
 
 void setup()
 {
+
+  pinMode(LED_BUILTIN, OUTPUT);
+
   Serial.begin(115200);
   Serial.printf("Boot\n");
   initailizeLua();
@@ -191,12 +235,20 @@ void setup()
 
 void loop()
 {
-  EVERY_N_MILLISECONDS(500)
-  {
-    lua_getglobal(L, "loop");
-    if(lua_pcall(L, 0, 0, 0) != 0){
-      Serial.printf("Lua Error: %s\n", lua_tostring(L, -1));
-      lua_pop(L, 1);
+  if(scriptActive){
+    EVERY_N_MILLISECONDS(500)
+    {
+      lua_getglobal(L, "loop");
+      if(lua_isfunction(L, -1)){
+        if(lua_pcall(L, 0, 0, 0) != 0){
+          Serial.printf("Lua Crash Detected: %s\n", lua_tostring(L, -1));
+          lua_pop(L, 1);
+          scriptActive = false;
+          Serial.printf("Entering Safe Mode. Script Stopped.\n");
+        }
+      } else {
+        lua_pop(L, 1);
+      }
     }
   }
 }
