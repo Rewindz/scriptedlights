@@ -1,8 +1,9 @@
 #include <Arduino.h>
 #include <FastLED.h>
+#include "secrets.h"
 #include "LedManager.h"
 #include "NetworkManager.h"
-
+#include "WebServerManager.h"
 
 extern "C"
 {
@@ -15,6 +16,8 @@ extern "C"
 
 lua_State *L = nullptr;
 LedManager<WS2812, LEDS_PIN> ledManager;
+NetworkManager netManager;
+WebServerManager webManager;
 bool scriptActive = false;
 
 static int l_serial_printf(lua_State *LL)
@@ -207,13 +210,21 @@ void setup()
 
   Serial.begin(115200);
   Serial.printf("Boot\n");
+
+  netManager.setHostname(G_HOSTNAME);
+  netManager.begin(G_SSID, G_PASSWORD);
+
+  webManager.addSubmitCallback(onScriptSubmit);
+  webManager.begin();
+  
+  
   initailizeLua();
   if(!L) {
-    Serial.printf("Unable to initalize!\n");
+    Serial.printf("Unable to initalize Lua!\n");
     return;
   }
 
-  Serial.printf("Initialized!\n");
+  Serial.printf("Initialized Lua!\n");
 
   ledManager.addLeds(10);
 
@@ -235,6 +246,9 @@ void setup()
 
 void loop()
 {
+
+  webManager.handleClient();
+  
   if(scriptActive){
     EVERY_N_MILLISECONDS(500)
     {
