@@ -163,7 +163,7 @@ void onScriptSubmit(const String& newScript)
 }
 
 
-String ledScript = 
+const char *ledScript = 
 R"(
 
 ledCount = 0
@@ -228,7 +228,7 @@ void setup()
 
   ledManager.addLeds(10);
 
-  int error = luaL_dostring(L, ledScript.c_str());
+  int error = luaL_dostring(L, ledScript);
 
   if(error){
     Serial.printf("Lua Error: %s\n", lua_tostring(L, -1));
